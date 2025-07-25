@@ -4,43 +4,9 @@
 #include <sstream>
 #include <vector>
 
+#include "header/tokenisation.h"
 
-enum class TokenType {
-    _return,
-    intLit,
-    semi
-};
 
-struct Token {
-    TokenType type;
-    std::optional<std::string> value;
-};
-
-std::vector<Token> Tokenise(std::string fileContents) {
-    std::vector<Token> tokens;
-    for (size_t i = 0; i < fileContents.size();) {
-        if (std::isspace(fileContents[i])) {
-            i+= 1;
-            continue;
-        } else if (std::isalpha(fileContents[i])) {
-            if (fileContents.compare(i, 6, "return")==0) {
-                tokens.push_back({TokenType::_return});
-                i += 6;
-            }
-        } else if (std::isdigit(fileContents[i])) {
-            std::string number;
-            while (std::isdigit(fileContents[i])) {
-                number += fileContents[i];
-                i += 1;
-            }
-            tokens.push_back({TokenType::intLit, number});
-        } else if (fileContents[i] == ';') {
-            tokens.push_back({TokenType::semi});
-            i+= 1;
-        }
-    }
-    return tokens;
-}
 
 std::string TokensToAsm(std::vector<Token>& tokens) {
     std::stringstream output;
@@ -48,7 +14,7 @@ std::string TokensToAsm(std::vector<Token>& tokens) {
     output << "_start:\n";
     for (int i = 0; i < tokens.size(); i++) {
         Token& token = tokens.at(i);
-        if (token.type == TokenType::_return) {
+        if (token.type == TokenType::exit) {
             if (i+1 < tokens.size() && tokens.at(i + 1).type == TokenType::intLit) {
                 if (i + 2 < tokens.size() && tokens.at(i + 2).type == TokenType::semi) {
                     output << "    mov rax, 60\n";
@@ -75,15 +41,16 @@ int main(int argc, char *argv[]) {
         contents = contentsStream.str();
     }
 
-    auto tokens = Tokenise(contents);
+    Tokeniser Tokeninator(contents);
 
-    std::cout << contents << std::endl;
+    auto tokens = Tokeninator.Tokenise();
+
 
     for (const auto& token : tokens) {
         std::cout << "Token: ";
         switch (token.type) {
-            case TokenType::_return:
-                std::cout << "return";
+            case TokenType::exit:
+                std::cout << "exit";
                 break;
             case TokenType::intLit:
                 std::cout << "intLit(" << token.value.value() << ")";
