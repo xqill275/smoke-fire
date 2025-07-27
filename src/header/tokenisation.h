@@ -55,13 +55,11 @@ class Tokeniser {
                     std::cout << "we are at isalpha Check: " << *ch << std::endl;
                     std::string ident;
                     while (auto c = current()) {
-                        if (isspace(*c)) {
+                        if (!std::isalnum(*c) && *c != '_') {
+                            // Exit the identifier if the character is not alphanumeric or underscore
                             break;
                         }
-                        std::cout << "IDENT SHIT: " << ident << std::endl;
-                        if (std::isalpha(*c)) {
-                            ident += consume();
-                        }
+                        ident += consume();
                     }
                     if (ident == "exit") {
                         tokens.push_back({TokenType::exit});
