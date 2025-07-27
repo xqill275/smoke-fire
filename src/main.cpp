@@ -27,9 +27,9 @@ int main(int argc, char *argv[]) {
     Tokeniser Tokeninator(contents);
 
     auto tokens = Tokeninator.Tokenise();
-
+    std::cout << "we are done tokenising!" << std::endl;
     Parser ASTParser(tokens);
-    std::unique_ptr<ProgramNode> ProgramNodes = ASTParser.Parse();
+    std::unique_ptr<ProgramNode> ProgramNodes = ASTParser.Parse(true);
 
     CodeGen codeGenarator(*ProgramNodes);
 
@@ -46,6 +46,16 @@ int main(int argc, char *argv[]) {
             case TokenType::semi:
                 std::cout << "semi";
                 break;
+            case TokenType::_int:
+                std::cout << "int";
+                break;
+            case TokenType::identifier:
+                std::cout << "identifier";
+                break;
+            case TokenType::equals:
+                std::cout << "equals";
+                break;
+
         }
         std::cout << std::endl;
     }

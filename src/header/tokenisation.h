@@ -8,7 +8,10 @@
 enum class TokenType {
     exit,
     intLit,
-    semi
+    semi,
+    _int,
+    identifier,
+    equals,
 };
 
 struct Token {
@@ -37,6 +40,14 @@ class Tokeniser {
                     std::cout << "we are at semi: " << std::endl;
                     consume();
                     tokens.push_back({TokenType::semi});
+                    std::cout << "Pushed semi" << std::endl;
+                    continue;
+                }
+
+                if (*ch == '=') {
+                    consume();
+                    tokens.push_back({TokenType::equals});
+                    std::cout << "Pushed equals" << std::endl;
                     continue;
                 }
 
@@ -54,8 +65,13 @@ class Tokeniser {
                     }
                     if (ident == "exit") {
                         tokens.push_back({TokenType::exit});
+                        std::cout << "Pushed exit" << std::endl;
+                    } else if (ident == "int") {
+                        tokens.push_back({TokenType::_int});
+                        std::cout << "Pushed int" << std::endl;
                     } else {
-                        std::cerr << "Unknown identifier" << ident << std::endl;
+                        tokens.push_back({TokenType::identifier, ident});
+                        std::cout << "Pushed identifier" << std::endl;
                     }
                     continue;
                 }
@@ -74,6 +90,8 @@ class Tokeniser {
                     }
 
                     tokens.push_back({TokenType::intLit, number});
+                    std::cout << "Pushed intLiteral" << std::endl;
+
                     continue;
                 }
 

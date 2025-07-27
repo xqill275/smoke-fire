@@ -8,7 +8,8 @@
 enum class ASTNodeType {
     ExitStmt,
     IntLiteral,
-    Program
+    Program,
+    VarDecl
 };
 
 struct ASTNode {
@@ -32,13 +33,23 @@ struct ProgramNode : public ASTNode {
     ProgramNode() { type = ASTNodeType::Program; }
 };
 
+struct VarDeclNode : public ASTNode {
+    std::string name;
+    std::unique_ptr<IntLiteralNode> value;
+
+    VarDeclNode(const std::string& n, std::unique_ptr<IntLiteralNode> v) : name(n), value(std::move(v)) {
+        type = ASTNodeType::VarDecl;
+    }
+};
+
 
 
 class Parser {
 public:
     explicit Parser(std::vector<Token>& Tokens) : m_tokens(Tokens) {}
 
-    std::unique_ptr<ProgramNode> Parse() {
+    std::unique_ptr<ProgramNode> Parse(bool DEBUG) {
+        std::cout << "we are now parsing" << std::endl;
         auto program = std::make_unique<ProgramNode>();
 
         while (!isAtEnd()) {
@@ -49,7 +60,39 @@ public:
                 error("unknown statement");
             }
         }
+        if (DEBUG) {
+            std::cout << "we are now showing the debug program from the parser" << std::endl;
+            getDebugProgram(*program);
+        }
         return program;
+    }
+
+    void getDebugProgram(const ProgramNode& program) {
+        std::cout << "--- DEBUG: AST DUMP ---" << std::endl;
+        for (const auto& stmt : program.statements) {
+            switch (stmt->type) {
+                case ASTNodeType::ExitStmt: {
+                    const auto* exitNode = static_cast<const ExitStmtNode*>(stmt.get());
+                    std::cout << "ExitStmt: code = " << exitNode->code->value << std::endl;
+                    break;
+                }
+                case ASTNodeType::VarDecl: {
+                    const auto* varNode = static_cast<const VarDeclNode*>(stmt.get());
+                    std::cout << "VarDecl: name = " << varNode->name
+                              << ", value = " << varNode->value->value << std::endl;
+                    break;
+                }
+                case ASTNodeType::IntLiteral: {
+                    const auto* lit = static_cast<const IntLiteralNode*>(stmt.get());
+                    std::cout << "IntLiteral (standalone?): value = " << lit->value << std::endl;
+                    break;
+                }
+                case ASTNodeType::Program:
+                    std::cout << "Program node (should not appear directly in statements)" << std::endl;
+                    break;
+            }
+        }
+        std::cout << "--- END AST DUMP ---" << std::endl;
     }
 
 
@@ -71,6 +114,30 @@ private:
             if (semiTok.type != TokenType::semi) error("Expected semicolon");
             advance();
             return std::make_unique<ExitStmtNode>(std::make_unique<IntLiteralNode>(value));
+        }
+
+        if (tok.type == TokenType::_int) {
+            advance();
+            const Token& identTok = current();
+            if (identTok.type != TokenType::identifier) error("Expected identifier after int");
+            std::string name = identTok.value.value();
+            advance();
+
+            const Token& eqTok = current();
+            if (eqTok.type != TokenType::equals) error("Expected = after identifier: "+name);
+            advance();
+
+            const Token& valueTok = current();
+            if (valueTok.type != TokenType::intLit) error("Expected intLit after =");
+            advance();
+
+            int value = std::stoi(valueTok.value.value());
+
+            const Token& semiTok = current();
+            if (semiTok.type != TokenType::semi) error("Expected ;");
+            advance();
+
+            return std::make_unique<VarDeclNode>(name, std::make_unique<IntLiteralNode>(value));
         }
     }
 
