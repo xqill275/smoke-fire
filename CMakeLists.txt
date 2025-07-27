@@ -5,4 +5,5 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_executable(untitled src/main.cpp
         src/header/tokenisation.h
-        src/header/Parser.h)
+        src/header/Parser.h
+        src/header/CodeGen.h)

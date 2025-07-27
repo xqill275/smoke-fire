@@ -5,27 +5,10 @@
 #include <vector>
 
 #include "header/tokenisation.h"
+#include "header/Parser.h"
+#include "header/CodeGen.h"
 
 
-
-std::string TokensToAsm(std::vector<Token>& tokens) {
-    std::stringstream output;
-    output << "global _start\n";
-    output << "_start:\n";
-    for (int i = 0; i < tokens.size(); i++) {
-        Token& token = tokens.at(i);
-        if (token.type == TokenType::exit) {
-            if (i+1 < tokens.size() && tokens.at(i + 1).type == TokenType::intLit) {
-                if (i + 2 < tokens.size() && tokens.at(i + 2).type == TokenType::semi) {
-                    output << "    mov rax, 60\n";
-                    output << "    mov rdi, " << tokens.at(i+1).value.value() << "\n";
-                    output << "    syscall\n";
-                }
-            }
-        }
-    }
-    return output.str();
-}
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
@@ -45,6 +28,11 @@ int main(int argc, char *argv[]) {
 
     auto tokens = Tokeninator.Tokenise();
 
+    Parser ASTParser(tokens);
+    std::unique_ptr<ProgramNode> ProgramNodes = ASTParser.Parse();
+
+    CodeGen codeGenarator(*ProgramNodes);
+
 
     for (const auto& token : tokens) {
         std::cout << "Token: ";
@@ -61,11 +49,11 @@ int main(int argc, char *argv[]) {
         }
         std::cout << std::endl;
     }
-    std::cout << TokensToAsm(tokens) << std::endl;
+    std::cout << codeGenarator.genASM().str() << std::endl;
 
     {
         std::fstream file("../out.asm", std::ios::out);
-        file << TokensToAsm(tokens);
+        file << codeGenarator.genASM().str();
     }
 
     system("wsl nasm -felf64 /mnt/c/Users/olive/CLionProjects/untitled/out.asm");
