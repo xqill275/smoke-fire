@@ -9,7 +9,8 @@ enum class ASTNodeType {
     ExitStmt,
     IntLiteral,
     Program,
-    VarDecl
+    VarDecl,
+    VarRef
 };
 
 struct ASTNode {
@@ -22,8 +23,8 @@ struct IntLiteralNode : public ASTNode {
 };
 
 struct ExitStmtNode : public ASTNode {
-    std::unique_ptr<IntLiteralNode> code;
-    ExitStmtNode(std::unique_ptr<IntLiteralNode> c) : code(std::move(c)) {
+    std::unique_ptr<ASTNode> code;
+    ExitStmtNode(std::unique_ptr<ASTNode> c) : code(std::move(c)) {
         type = ASTNodeType::ExitStmt;
     }
 };
@@ -39,6 +40,13 @@ struct VarDeclNode : public ASTNode {
 
     VarDeclNode(const std::string& n, std::unique_ptr<IntLiteralNode> v) : name(n), value(std::move(v)) {
         type = ASTNodeType::VarDecl;
+    }
+};
+
+struct VarRefNode : public ASTNode {
+    std::string name;
+    VarRefNode(const std::string& n) : name(n) {
+        type = ASTNodeType::VarRef;
     }
 };
 
@@ -73,7 +81,17 @@ public:
             switch (stmt->type) {
                 case ASTNodeType::ExitStmt: {
                     const auto* exitNode = static_cast<const ExitStmtNode*>(stmt.get());
-                    std::cout << "ExitStmt: code = " << exitNode->code->value << std::endl;
+                    std::cout << "ExitStmt: code = ";
+                    if (exitNode->code->type == ASTNodeType::IntLiteral) {
+                        auto* lit = static_cast<IntLiteralNode*>(exitNode->code.get());
+                        std::cout << lit->value;
+                    } else if (exitNode->code->type == ASTNodeType::VarRef) {
+                        auto* var = static_cast<VarRefNode*>(exitNode->code.get());
+                        std::cout << var->name;
+                    } else {
+                        std::cout << "(unknown expression)";
+                    }
+                    std::cout << std::endl;
                     break;
                 }
                 case ASTNodeType::VarDecl: {
@@ -106,14 +124,21 @@ private:
         if (tok.type == TokenType::exit) {
             advance();
             const Token& intTok = current();
-            if (intTok.type != TokenType::intLit) error("Expected int after exit");
-            int value = std::stoi(intTok.value.value());
-            advance();
 
+            std::unique_ptr<ASTNode> valueNode;
+            if (intTok.type == TokenType::intLit) {
+                int value = std::stoi(intTok.value.value());
+                valueNode = std::make_unique<IntLiteralNode>(value);
+            } else if (intTok.type == TokenType::identifier) {
+                valueNode = std::make_unique<VarRefNode>(intTok.value.value());
+            } else {
+                error("Expected int literal or variable name after exit");
+            }
+            advance();
             const Token& semiTok = current();
             if (semiTok.type != TokenType::semi) error("Expected semicolon");
             advance();
-            return std::make_unique<ExitStmtNode>(std::make_unique<IntLiteralNode>(value));
+            return std::make_unique<ExitStmtNode>(std::move(valueNode));
         }
 
         if (tok.type == TokenType::_int) {

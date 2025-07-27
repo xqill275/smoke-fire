@@ -28,11 +28,20 @@ public:
                 output << "    mov QWORD [rbp-" << m_stackOffset << "], " << varNode->value->value << "\n";
             } else if (stmt->type == ASTNodeType::ExitStmt) {
                 auto* exitNode = static_cast<ExitStmtNode*>(stmt.get());
+                if (exitNode->code->type == ASTNodeType::IntLiteral) {
+                    auto* lit = static_cast<IntLiteralNode*>(exitNode->code.get());
+                    output << "    mov rdi, " << lit->value << "\n";
+                } else if (exitNode->code->type == ASTNodeType::VarRef) {
+                    auto* var = static_cast<VarRefNode*>(exitNode->code.get());
+                    int offset = m_variableOffsets.at(var->name);
+                    output << "    mov rdi, QWORD [rbp-" << offset << "]\n";
+                }
+
                 output << "    mov rax, 60\n";
-                output << "    mov rdi, " << exitNode->code->value << "\n";
                 output << "    syscall\n";
             }
         }
+
         return output;
     }
 private:

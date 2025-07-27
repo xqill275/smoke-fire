@@ -59,7 +59,6 @@ int main(int argc, char *argv[]) {
         }
         std::cout << std::endl;
     }
-    std::cout << codeGenarator.genASM().str() << std::endl;
 
     {
         std::fstream file("../out.asm", std::ios::out);
