@@ -36,9 +36,9 @@ struct ProgramNode : public ASTNode {
 
 struct VarDeclNode : public ASTNode {
     std::string name;
-    std::unique_ptr<IntLiteralNode> value;
+    std::unique_ptr<ASTNode> value;
 
-    VarDeclNode(const std::string& n, std::unique_ptr<IntLiteralNode> v) : name(n), value(std::move(v)) {
+    VarDeclNode(const std::string& n, std::unique_ptr<ASTNode> v) : name(n), value(std::move(v)) {
         type = ASTNodeType::VarDecl;
     }
 };
@@ -96,8 +96,19 @@ public:
                 }
                 case ASTNodeType::VarDecl: {
                     const auto* varNode = static_cast<const VarDeclNode*>(stmt.get());
-                    std::cout << "VarDecl: name = " << varNode->name
-                              << ", value = " << varNode->value->value << std::endl;
+                    std::cout << "VarDecl: name = " << varNode->name << ", value = ";
+
+                    if (varNode->value->type == ASTNodeType::IntLiteral) {
+                        auto* lit = static_cast<IntLiteralNode*>(varNode->value.get());
+                        std::cout << lit->value;
+                    } else if (varNode->value->type == ASTNodeType::VarRef) {
+                        auto* ref = static_cast<VarRefNode*>(varNode->value.get());
+                        std::cout << ref->name;
+                    } else {
+                        std::cout << "(unknown expression)";
+                    }
+
+                    std::cout << std::endl;
                     break;
                 }
                 case ASTNodeType::IntLiteral: {
@@ -153,16 +164,21 @@ private:
             advance();
 
             const Token& valueTok = current();
-            if (valueTok.type != TokenType::intLit) error("Expected intLit after =");
+            std::unique_ptr<ASTNode> valueNode;
+            if (valueTok.type == TokenType::intLit) {
+                int value = std::stoi(valueTok.value.value());
+                valueNode = std::make_unique<IntLiteralNode>(value);
+            } else if (valueTok.type == TokenType::identifier) {
+                valueNode = std::make_unique<VarRefNode>(valueTok.value.value());
+            } else {
+                error("Expected int literal or identifier after =");
+            }
             advance();
-
-            int value = std::stoi(valueTok.value.value());
-
             const Token& semiTok = current();
             if (semiTok.type != TokenType::semi) error("Expected ;");
             advance();
 
-            return std::make_unique<VarDeclNode>(name, std::make_unique<IntLiteralNode>(value));
+            return std::make_unique<VarDeclNode>(name, std::move(valueNode));
         }
     }
 

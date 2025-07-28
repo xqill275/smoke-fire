@@ -25,7 +25,15 @@ public:
                 auto* varNode = static_cast<VarDeclNode*>(stmt.get());
                 m_stackOffset += 8;
                 m_variableOffsets[varNode->name] = m_stackOffset;
-                output << "    mov QWORD [rbp-" << m_stackOffset << "], " << varNode->value->value << "\n";
+                if (varNode->value->type == ASTNodeType::IntLiteral) {
+                    auto* lit = static_cast<IntLiteralNode*>(varNode->value.get());
+                    output << "    mov QWORD [rbp-" << m_stackOffset << "], " << lit->value << "\n";
+                } else if (varNode->value->type == ASTNodeType::VarRef) {
+                    auto* ref = static_cast<VarRefNode*>(varNode->value.get());
+                    int offset = m_variableOffsets.at(ref->name);
+                    output << "    mov rax, QWORD [rbp-" << offset << "]\n";
+                    output << "    mov QWORD [rbp-" << m_stackOffset << "], rax\n";
+                }
             } else if (stmt->type == ASTNodeType::ExitStmt) {
                 auto* exitNode = static_cast<ExitStmtNode*>(stmt.get());
                 if (exitNode->code->type == ASTNodeType::IntLiteral) {

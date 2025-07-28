@@ -1,2 +1,5 @@
-int a = 10;
-exit a;
+int a = 25;
+int b = a;
+int c = b;
+exit c;
+
