@@ -5,12 +5,19 @@
 #include "../header/tokenisation.h"
 
 
+
+enum class BinaryOp {
+    Add,
+    Mul
+};
+
 enum class ASTNodeType {
     ExitStmt,
     IntLiteral,
     Program,
     VarDecl,
-    VarRef
+    VarRef,
+    BinaryExpr
 };
 
 struct ASTNode {
@@ -50,6 +57,16 @@ struct VarRefNode : public ASTNode {
     }
 };
 
+struct BinaryExprNode: public ASTNode {
+    BinaryOp op;
+    std::unique_ptr<ASTNode> left;
+    std::unique_ptr<ASTNode> right;
+
+    BinaryExprNode(BinaryOp o, std::unique_ptr<ASTNode> l, std::unique_ptr<ASTNode> r) : op(o), left(std::move(l)), right(std::move(r)) {
+        type = ASTNodeType::BinaryExpr;
+    }
+
+};
 
 
 class Parser {
@@ -59,10 +76,12 @@ public:
     std::unique_ptr<ProgramNode> Parse(bool DEBUG) {
         std::cout << "we are now parsing" << std::endl;
         auto program = std::make_unique<ProgramNode>();
-
+        std::cout << "make program node" << std::endl;
         while (!isAtEnd()) {
+            std::cout << "in the !isAtEnd Check" << std::endl;
             auto stmt = parseStatement();
             if (stmt) {
+                std::cout << "running stmt parse" << std::endl;
                 program->statements.push_back(std::move(stmt));
             } else {
                 error("unknown statement");
@@ -75,39 +94,52 @@ public:
         return program;
     }
 
+    void printExpr(const ASTNode* node) {
+        switch (node->type) {
+            case ASTNodeType::IntLiteral: {
+                const auto* lit = static_cast<const IntLiteralNode*>(node);
+                std::cout<< lit->value;
+                break;
+            }
+            case ASTNodeType::VarRef: {
+                const auto* var = static_cast<const VarRefNode*>(node);
+                std::cout << var->name;
+                break;
+            }
+            case ASTNodeType::BinaryExpr: {
+                const auto* bin = static_cast<const BinaryExprNode*>(node);
+                std::cout << "(";
+                printExpr(bin->left.get());
+                switch (bin->op) {
+                    case BinaryOp::Add: std::cout << "+"; break;
+                    case BinaryOp::Mul: std::cout << "*"; break;
+                }
+                printExpr(bin->right.get());
+                std::cout << ")";
+                break;
+            }
+                default: {
+                std::cout << "(unknown expr)";
+                break;
+            }
+        }
+    }
+
     void getDebugProgram(const ProgramNode& program) {
         std::cout << "--- DEBUG: AST DUMP ---" << std::endl;
         for (const auto& stmt : program.statements) {
             switch (stmt->type) {
                 case ASTNodeType::ExitStmt: {
                     const auto* exitNode = static_cast<const ExitStmtNode*>(stmt.get());
-                    std::cout << "ExitStmt: code = ";
-                    if (exitNode->code->type == ASTNodeType::IntLiteral) {
-                        auto* lit = static_cast<IntLiteralNode*>(exitNode->code.get());
-                        std::cout << lit->value;
-                    } else if (exitNode->code->type == ASTNodeType::VarRef) {
-                        auto* var = static_cast<VarRefNode*>(exitNode->code.get());
-                        std::cout << var->name;
-                    } else {
-                        std::cout << "(unknown expression)";
-                    }
+                    std::cout << "ExitStmt code =";
+                    printExpr(exitNode->code.get()); // NEED TO WRITE
                     std::cout << std::endl;
                     break;
                 }
                 case ASTNodeType::VarDecl: {
                     const auto* varNode = static_cast<const VarDeclNode*>(stmt.get());
                     std::cout << "VarDecl: name = " << varNode->name << ", value = ";
-
-                    if (varNode->value->type == ASTNodeType::IntLiteral) {
-                        auto* lit = static_cast<IntLiteralNode*>(varNode->value.get());
-                        std::cout << lit->value;
-                    } else if (varNode->value->type == ASTNodeType::VarRef) {
-                        auto* ref = static_cast<VarRefNode*>(varNode->value.get());
-                        std::cout << ref->name;
-                    } else {
-                        std::cout << "(unknown expression)";
-                    }
-
+                    printExpr(varNode->value.get()); // NEED TO WRITE
                     std::cout << std::endl;
                     break;
                 }
@@ -116,9 +148,14 @@ public:
                     std::cout << "IntLiteral (standalone?): value = " << lit->value << std::endl;
                     break;
                 }
-                case ASTNodeType::Program:
+                case ASTNodeType::Program: {
                     std::cout << "Program node (should not appear directly in statements)" << std::endl;
                     break;
+                }
+                case ASTNodeType::BinaryExpr: {
+                    std::cout << "BinaryExpr (should not appear directly in statements)" << std::endl;
+                    break;
+                }
             }
         }
         std::cout << "--- END AST DUMP ---" << std::endl;
@@ -131,54 +168,80 @@ private:
     size_t m_CurrentIndex{};
 
     std::unique_ptr<ASTNode> parseStatement() {
+        std::cout << "in parseStatement function" << std::endl;
         const Token& tok = current();
         if (tok.type == TokenType::exit) {
             advance();
-            const Token& intTok = current();
-
-            std::unique_ptr<ASTNode> valueNode;
-            if (intTok.type == TokenType::intLit) {
-                int value = std::stoi(intTok.value.value());
-                valueNode = std::make_unique<IntLiteralNode>(value);
-            } else if (intTok.type == TokenType::identifier) {
-                valueNode = std::make_unique<VarRefNode>(intTok.value.value());
-            } else {
-                error("Expected int literal or variable name after exit");
-            }
+            auto expr = parseExpression();
+            if (current().type != TokenType::semi) error("Expected semicolon");
             advance();
-            const Token& semiTok = current();
-            if (semiTok.type != TokenType::semi) error("Expected semicolon");
-            advance();
-            return std::make_unique<ExitStmtNode>(std::move(valueNode));
+            return std::make_unique<ExitStmtNode>(std::move(expr));
         }
 
         if (tok.type == TokenType::_int) {
+            std::cout << "found int statement" << std::endl;
             advance();
-            const Token& identTok = current();
-            if (identTok.type != TokenType::identifier) error("Expected identifier after int");
+            const auto& identTok = current();
+            std::cout << "found the ident" << std::endl;
+            if (identTok.type != TokenType::identifier) error("Expected identifier");
             std::string name = identTok.value.value();
+            std::cout << "found name " << name << std::endl;
             advance();
 
-            const Token& eqTok = current();
-            if (eqTok.type != TokenType::equals) error("Expected = after identifier: "+name);
+            if (current().type != TokenType::equals) error("Expected =");
             advance();
 
-            const Token& valueTok = current();
-            std::unique_ptr<ASTNode> valueNode;
-            if (valueTok.type == TokenType::intLit) {
-                int value = std::stoi(valueTok.value.value());
-                valueNode = std::make_unique<IntLiteralNode>(value);
-            } else if (valueTok.type == TokenType::identifier) {
-                valueNode = std::make_unique<VarRefNode>(valueTok.value.value());
-            } else {
-                error("Expected int literal or identifier after =");
-            }
-            advance();
-            const Token& semiTok = current();
-            if (semiTok.type != TokenType::semi) error("Expected ;");
-            advance();
+            auto expr = parseExpression();
 
-            return std::make_unique<VarDeclNode>(name, std::move(valueNode));
+            if (current().type != TokenType::semi) error("Expected semicolon");
+            advance();
+            std::cout << "returning unique varDeclNode" << std::endl;
+            return std::make_unique<VarDeclNode>(name, std::move(expr));
+        }
+    }
+
+    std::unique_ptr<ASTNode> parseTerm() {
+        std::cout << "we are now in parseTerm" << std::endl;
+        auto left = parseFactor();
+        while (!isAtEnd() && current().type == TokenType::mul) {
+            advance();
+            auto right = parseFactor();
+            left = std::make_unique<BinaryExprNode>(BinaryOp::Mul, std::move(left), std::move(right));
+        }
+        return left;
+    }
+
+    std::unique_ptr<ASTNode> parseExpression() {
+        std::cout << "we are now in parseExpression function" << std::endl;
+        auto left = parseTerm(); // NEED TO MAKE
+        while (!isAtEnd() && current().type == TokenType::plus) {
+            advance();
+            auto right = parseTerm();
+            left = std::make_unique<BinaryExprNode>(BinaryOp::Add, std::move(left), std::move(right));
+        }
+        return left;
+    }
+
+
+    std::unique_ptr<ASTNode> parseFactor() {
+        std::cout << "we are now in parseFactor" << std::endl;
+        const auto& tok = current();
+        std::cout << "(parseFactor)gotCurrent" << std::endl;
+        if (tok.type == TokenType::intLit) {
+            std::cout << "(parseFactor)Current is a intLit" << std::endl;
+            int value = std::stoi(tok.value.value());
+            std::cout << "(parseFactor)creating value " << value << std::endl;
+            advance();
+            std::cout << "(parseFactor)made IntLitNode" << std::endl;
+            return std::make_unique<IntLiteralNode>(value);
+        } else if (tok.type == TokenType::identifier) {
+            std::cout << "(parseFactor)Current is a identifier" << std::endl;
+            std::string name = tok.value.value();
+            advance();
+            return std::make_unique<VarRefNode>(name);
+        } else {
+            error("EXpected number or identifier");
+            return nullptr;
         }
     }
 

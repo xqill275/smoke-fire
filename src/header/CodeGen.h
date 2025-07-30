@@ -25,26 +25,15 @@ public:
                 auto* varNode = static_cast<VarDeclNode*>(stmt.get());
                 m_stackOffset += 8;
                 m_variableOffsets[varNode->name] = m_stackOffset;
-                if (varNode->value->type == ASTNodeType::IntLiteral) {
-                    auto* lit = static_cast<IntLiteralNode*>(varNode->value.get());
-                    output << "    mov QWORD [rbp-" << m_stackOffset << "], " << lit->value << "\n";
-                } else if (varNode->value->type == ASTNodeType::VarRef) {
-                    auto* ref = static_cast<VarRefNode*>(varNode->value.get());
-                    int offset = m_variableOffsets.at(ref->name);
-                    output << "    mov rax, QWORD [rbp-" << offset << "]\n";
-                    output << "    mov QWORD [rbp-" << m_stackOffset << "], rax\n";
-                }
+
+                genExpr(output, varNode->value.get());
+                output << "    mov QWORD [rbp-" << m_stackOffset << "], rax\n";
+
             } else if (stmt->type == ASTNodeType::ExitStmt) {
                 auto* exitNode = static_cast<ExitStmtNode*>(stmt.get());
-                if (exitNode->code->type == ASTNodeType::IntLiteral) {
-                    auto* lit = static_cast<IntLiteralNode*>(exitNode->code.get());
-                    output << "    mov rdi, " << lit->value << "\n";
-                } else if (exitNode->code->type == ASTNodeType::VarRef) {
-                    auto* var = static_cast<VarRefNode*>(exitNode->code.get());
-                    int offset = m_variableOffsets.at(var->name);
-                    output << "    mov rdi, QWORD [rbp-" << offset << "]\n";
-                }
 
+                genExpr(output, exitNode->code.get());
+                output << "    mov rdi, rax\n";
                 output << "    mov rax, 60\n";
                 output << "    syscall\n";
             }
@@ -56,5 +45,33 @@ private:
     ProgramNode& m_program;
     std::unordered_map<std::string, int> m_variableOffsets;
     int m_stackOffset = 0;
+
+
+    void genExpr(std::stringstream& output, ASTNode* expr) {
+        if (expr->type == ASTNodeType::IntLiteral) {
+            auto* lit = static_cast<IntLiteralNode*>(expr);
+            output << "    mov rax, " << lit->value << "\n";
+        } else if (expr->type == ASTNodeType::VarRef) {
+            auto* var = static_cast<VarRefNode*>(expr);
+            int offset = m_variableOffsets.at(var->name);
+            output << "    mov rax, QWORD [rbp-" << offset << "]\n";
+        } else if (expr->type == ASTNodeType::BinaryExpr) {
+            auto* bin = static_cast<BinaryExprNode*>(expr);
+            genExpr(output, bin->right.get());
+            output << "    push rax\n";
+            genExpr(output, bin->left.get());
+            output << "    pop rcx\n";
+            switch (bin->op) {
+                case BinaryOp::Add:
+                    output << "    add rax, rcx\n";
+                    break;
+                case BinaryOp::Mul:
+                    output << "    imul rax, rcx\n";
+                    break;
+            }
+        } else {
+            throw std::runtime_error("Unsupported expression in codegen");
+        }
+    }
 
 };

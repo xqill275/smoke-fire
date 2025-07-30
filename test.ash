@@ -1,5 +1,4 @@
-int a = 25;
+int a = 1 + 1 * 3;
 int b = a;
-int c = b;
-exit c;
+exit b;
 
