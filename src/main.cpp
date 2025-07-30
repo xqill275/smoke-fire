@@ -28,11 +28,6 @@ int main(int argc, char *argv[]) {
 
     auto tokens = Tokeninator.Tokenise();
     std::cout << "we are done tokenising!" << std::endl;
-    Parser ASTParser(tokens);
-    std::unique_ptr<ProgramNode> ProgramNodes = ASTParser.Parse(true);
-
-    CodeGen codeGenarator(*ProgramNodes);
-
 
     for (const auto& token : tokens) {
         std::cout << "Token: ";
@@ -55,10 +50,24 @@ int main(int argc, char *argv[]) {
             case TokenType::equals:
                 std::cout << "equals";
                 break;
+            case TokenType::plus:
+                std::cout << "plus";
+                break;
+            case TokenType::mul:
+                std::cout << "mul";
+                break;
+
 
         }
         std::cout << std::endl;
     }
+
+    Parser ASTParser(tokens);
+    std::unique_ptr<ProgramNode> ProgramNodes = ASTParser.Parse(true);
+
+    CodeGen codeGenarator(*ProgramNodes);
+
+
 
     {
         std::fstream file("../out.asm", std::ios::out);

@@ -12,6 +12,8 @@ enum class TokenType {
     _int,
     identifier,
     equals,
+    mul,
+    plus,
 };
 
 struct Token {
@@ -41,6 +43,20 @@ class Tokeniser {
                     consume();
                     tokens.push_back({TokenType::semi});
                     std::cout << "Pushed semi" << std::endl;
+                    continue;
+                }
+
+                if (*ch == '*') {
+                    consume();
+                    tokens.push_back({TokenType::mul});
+                    std::cout << "Pushed mul" << std::endl;
+                    continue;
+                }
+
+                if (*ch == '+') {
+                    consume();
+                    tokens.push_back({TokenType::plus});
+                    std::cout << "Pushed plus" << std::endl;
                     continue;
                 }
 
